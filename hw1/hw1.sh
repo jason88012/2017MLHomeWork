@@ -1,0 +1,2 @@
+#!/bin/zsh 
+python3 hw1.py 

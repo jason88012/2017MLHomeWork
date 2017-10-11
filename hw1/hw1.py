@@ -7,21 +7,27 @@ import random
 import sys
 import os
 
-#Test 123123123
+# Define saving path
+SAVE_PATH = './hw1_weight.pkl'
+RESULT_PATH = './hw1_result.csv'
+
+#Define feature's index
+dic = {"TEMP":0, "CH4":1, "CO":2, "NMHC":3, "NO":4, "NO2":5, "NOx":6, "O3":7, "PM10":8, "PM25":9, 
+	   "RAIN":10, "RH":11, "SO2":12, "THC":13, "WDHR":14, "WDDIR":15, "WDSP":16, "WSHR":17}
+
+# Define desire feature
+f = {"PM10":8, "PM25":9, "WDSP":16, "NOx":6, "O3":7}
 
 # Constants
 CONST_TIMES = 9
 CONST_ATTRS = 18
+CONST_FEATURE = len(f)
 
 # Learning variable
-LEARNING_RATE = np.array([0.03]*(CONST_TIMES*CONST_ATTRS+1))
+LEARNING_RATE = np.array([0.0000001]*(CONST_TIMES*CONST_FEATURE+1))
 LAMBDA = 0.1
-BATCH_SIZE = 240
-EPISODES = 1000
-
-# Define saving path
-SAVE_PATH = './hw1_weight.pkl'
-RESULT_PATH = './hw1_result.csv'
+BATCH_SIZE = 100
+EPISODES = 10000
 
 def dataPreProcess(train, test):
 	# Read and process training data, make it's formal as same as testing one
@@ -38,16 +44,17 @@ def dataPreProcess(train, test):
 
 class record(object):
 	def __init__(self):
-		self.memory_size = 200
-		self.weight = np.ones(CONST_TIMES*CONST_ATTRS + 1)
+		self.memory_size = 1000
+		#self.weight = np.ones(CONST_TIMES*CONST_ATTRS + 1)
+		self.weight = np.array([1] * (CONST_TIMES*CONST_FEATURE + 1))
 		self.episodes = 0
 		#self.grad_sum = np.zeros(CONST_TIMES*CONST_ATTRS + 1)
-		self.grad_sum = np.array([0.0001] * (CONST_TIMES*CONST_ATTRS + 1))
+		self.grad_sum = np.array([0.0000001] * (CONST_TIMES*CONST_FEATURE + 1))
 		self.loss_history = []
 
 
 class Learning(object):
-	def __init__(self, datas, tdatas, lr, lamb, batch):
+	def __init__(self, datas, tdatas, lr, lamb, batch, episodes):
 		if os.path.isfile(SAVE_PATH):
 			f = open(SAVE_PATH, 'rb')
 			self.record = pkl.load(f)
@@ -59,18 +66,21 @@ class Learning(object):
 		self.learning_rate = lr
 		self.lamb = lamb
 		self.batch = batch
+		self.episodes = episodes
 
+	# Choose desire feature
 	def getFeature(self, id, datas):
 		feature = []
 		for time in range(CONST_TIMES):
 			for attr in range(CONST_ATTRS):
-				feature.append(float(datas[time+2][id*CONST_ATTRS+attr]))
+				if attr == f["PM10"] or attr == f["PM25"] or attr == f["WDSP"] or attr == f["NOx"] or attr==f["O3"]:
+					feature.append(float(datas[time+2][id*CONST_ATTRS+attr]))
 		# Add bias feature = 1
 		feature.append(1)
 		return np.array(feature)
 
 	def getRealOutput(self, id, datas):
-		return float(datas[CONST_TIMES+2][id*CONST_ATTRS+10])
+		return float(datas[CONST_TIMES+2][id*CONST_ATTRS+9])
 
 	# calculate loss fuction
 	def loss(self, start, data):
@@ -87,7 +97,7 @@ class Learning(object):
 	# calculate gradient and normalize it
 	def calcGradient(self, start):
 		id = start
-		grad = np.zeros(CONST_TIMES*CONST_ATTRS + 1)
+		grad = np.zeros(CONST_TIMES*CONST_FEATURE + 1)
 		for _ in range(self.batch):
 			if id >= self.data_num:
 				id = 0
@@ -102,11 +112,12 @@ class Learning(object):
 		grad = self.calcGradient(start)
 		self.record.grad_sum += grad**2
 		lr_ada = self.learning_rate / (self.record.grad_sum**0.5)
-		self.record.weight = self.record.weight - lr_ada*grad
+		lr = self.learning_rate
+		self.record.weight = self.record.weight - lr*grad
 
 	def training(self):
 		training_times = 0
-		for ep in range(EPISODES):
+		for ep in range(self.episodes):
 			try:
 				start = random.randint(0, self.data_num)
 				loss = self.loss(start, self.datas)
@@ -154,7 +165,8 @@ class Learning(object):
 
 if __name__ == '__main__':
 	train_datas, test_datas = dataPreProcess(sys.argv[1], sys.argv[2])
-	l = Learning(train_datas, test_datas, lr=LEARNING_RATE, lamb=LAMBDA, batch=BATCH_SIZE)
+	l = Learning(train_datas, test_datas, lr=LEARNING_RATE, lamb=LAMBDA, batch=BATCH_SIZE, episodes=EPISODES)
+
 	l.training()
 	l.save(SAVE_PATH)
 	l.test()
